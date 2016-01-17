@@ -309,7 +309,7 @@ func (l *lexer) atTerminator() bool {
 	}
 	// if r is an operator...
 	switch r {
-	case eof, '.', ',', '|', ':', ')', '(', '+', '/', '~', '{', '}', '-', '%', '*', '=', '!', '&':
+	case eof /*'.',*/, ',', '|', ':', ')', '(', '+', '/', '~', '{', '}', '-', '%', '*', '=', '!', '&':
 		return true
 	}
 
@@ -499,7 +499,7 @@ func lexSpace(l *lexer) stateFn {
 func lexIdentifier(l *lexer) stateFn {
 	for {
 		switch r := l.next(); {
-		case isAlphaNumeric(r):
+		case isAlphaNumeric(r), r == '.':
 			// absorb.
 		default:
 			l.backup()

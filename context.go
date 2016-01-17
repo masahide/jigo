@@ -3,6 +3,7 @@ package jigo
 import (
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 // A context represents an environment passed in by a user to a template.  Certain
@@ -33,18 +34,66 @@ func NewContext(i interface{}) (*Context, error) {
 // lookup finds a single name in a single context.  If no name is found, then
 // an empty Value is returned and ok is False.
 func (c Context) lookup(name string) (v reflect.Value, ok bool) {
+	pname, cname, err := hasChild(name)
 	switch c.kind {
 	case reflect.Map:
-		v := c.value.MapIndex(reflect.ValueOf(name))
-		return v, v.IsValid()
+		if err != nil {
+			return v, false
+		}
+		v := c.value.MapIndex(reflect.ValueOf(pname))
+		if cname == "" {
+			return v, v.IsValid()
+		}
+		switch t := v.Interface().(type) {
+		case Context:
+			return t.lookup(cname)
+		}
+		return v, false
 	case reflect.Struct:
 		// FIXME: reflectx fieldmaps will be much faster but a fair bit more code.
 		// We should use them eventually.
-		v := c.value.FieldByName(name)
-		return v, v.IsValid()
+		v := c.value.FieldByName(pname)
+		if cname == "" {
+			return v, v.IsValid()
+		}
+		switch t := v.Interface().(type) {
+		case Context:
+			return t.lookup(cname)
+		}
+		return v, false
 	default:
 		return v, false
 	}
+}
+
+func hasChild(name string) (parent, child string, err error) {
+	i := strings.IndexAny(name, ".[")
+	if i == 0 {
+		switch name[i] {
+		case '[':
+			name = name[1:]
+			i := strings.Index(name, "]")
+			if i == -1 {
+				return "", "", fmt.Errorf("']' is not found. [%s]", name)
+			}
+			parent = name[:i]
+			child = name[i+1:]
+			if (parent[0] == '\'' && parent[len(parent)-1] == '\'') || (parent[0] == '"' && parent[len(parent)-1] == '"') {
+				parent = parent[1 : len(parent)-1]
+			}
+			return
+		case '.':
+			name = name[1:]
+			i = strings.IndexAny(name, ".[")
+		}
+	}
+	if i == -1 {
+		parent = name
+		return
+	}
+	parent = name[:i]
+	child = name[i:]
+	return
 }
 
 // A stack of contexts.  Lookup failures go up the stack until there's a success
